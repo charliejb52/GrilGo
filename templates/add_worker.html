@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Add a New Worker</h2>
+  <form method="POST">
+    <div class="mb-3">
+      <label for="name">Worker Name:</label>
+      <input type="text" name="name" id="name" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Worker</button>
+  </form>
+{% endblock %}

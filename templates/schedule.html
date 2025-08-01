@@ -4,7 +4,8 @@
   <h2>Upcoming Shifts</h2>
 
   <a href="{{ url_for('add_shift') }}" class="btn btn-success mb-3">+ Add New Shift</a>
-
+  <a href="{{ url_for('add_worker') }}" class="btn btn-secondary mb-3">+ Add New Worker</a>
+  <a href="{{ url_for('calendar_view') }}" class="btn btn-outline-primary">📅 View Calendar</a>
   <ul class="list-group">
     {% for shift in shifts %}
       <li class="list-group-item">
