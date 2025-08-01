@@ -2,6 +2,9 @@
 
 {% block content %}
   <h2>Upcoming Shifts</h2>
+
+  <a href="{{ url_for('add_shift') }}" class="btn btn-success mb-3">+ Add New Shift</a>
+
   <ul class="list-group">
     {% for shift in shifts %}
       <li class="list-group-item">
