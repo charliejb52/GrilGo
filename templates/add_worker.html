@@ -1,6 +1,11 @@
+{% extends "base.html" %}
+
+
+{% block content %}
 <html>
 <head>
     <title>Manage Workers</title>
+    <a href="{{ url_for('show_schedule') }}" class="btn btn-secondary">Back to Schedule</a>
 </head>
 <body>
     <h1>Add a New Worker</h1>
@@ -22,3 +27,4 @@
     </ul>
 </body>
 </html>
+{% endblock %}
