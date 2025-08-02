@@ -123,7 +123,7 @@ def add_worker():
         return redirect(url_for('add_worker'))
 
     workers = Worker.query.order_by(Worker.name).all()
-    return render_template('add_worker.html', workers=workers)
+    return render_template('manage_workers.html', workers=workers)
 
 @app.route('/delete_worker/<int:worker_id>', methods=['POST'])
 def delete_worker(worker_id):
