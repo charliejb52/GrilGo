@@ -7,35 +7,37 @@
         <h2>{{ calendar.month_name[month] }} {{ year }}</h2>
 
         <a href="{{ url_for('calendar_view', month=month+1, year=year) }}" class="btn btn-outline-secondary">Next »</a>
-    </div>  <table class="table table-bordered text-center">
-    <thead>
-      <tr>
-        <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th>
-        <th>Thu</th><th>Fri</th><th>Sat</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for week in month_days %}
+    </div> 
+    <table>
         <tr>
-            {% for day in week %}
-                <td class="align-top" style="min-height: 100px;">
-                    {% if day != 0 %}
-                        <strong>{{ day }}</strong><br>
-
-                        {% if shifts_by_day[day] is defined %}
-                            {% for shift in shifts_by_day[day] %}
-                                <div style="font-size: 0.85em; margin-top: 2px;">
-                                    {{ shift.worker.name }}<br>
-                                    {{ shift.start_time.strftime('%H:%M') }} - {{ shift.end_time.strftime('%H:%M') }}
-                                </div>
-                            {% endfor %}
-                        {% endif %}
+            <th>Mon</th>
+            <th>Tue</th>
+            <th>Wed</th>
+            <th>Thu</th>
+            <th>Fri</th>
+            <th>Sat</th>
+            <th>Sun</th>
+        </tr>
+        {% for week in weeks %}
+            <tr>
+            {% for date_obj in week %}
+                <td>
+                {% if date_obj %}
+                    <a href="{{ url_for('add_shift_with_date', date=date_obj.strftime('%Y-%m-%d')) }}">
+                    {{ date_obj.day }}
+                    </a>
+                    {% if shifts_by_day.get(date_obj.day) %}
+                    {% for shift in shifts_by_day[date_obj.day] %}
+                        <div style="font-size: 0.85em;">
+                        {{ shift.worker.name }} ({{ shift.start_time.strftime('%H:%M') }}–{{ shift.end_time.strftime('%H:%M') }})
+                        </div>
+                    {% endfor %}
                     {% endif %}
+                {% endif %}
                 </td>
             {% endfor %}
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-<a href="{{ url_for('show_schedule') }}" class="btn btn-secondary">Back to Schedule</a>
+            </tr>
+        {% endfor %}
+    </table>
+<a href="{{ url_for('add_worker') }}" class="btn btn-secondary">Manage workers</a>
 {% endblock %}

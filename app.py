@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import calendar
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import extract, event
 from sqlalchemy.engine import Engine
 import sqlite3
@@ -32,10 +32,58 @@ class Shift(db.Model):
     worker_id = db.Column(db.Integer, db.ForeignKey('worker.id', ondelete="CASCADE"), nullable=False)
 
 @app.route('/')
-def show_schedule():
-    shifts = Shift.query.all()
-    print("Shifts found:", shifts)  # DEBUG LINE
-    return render_template('schedule.html', shifts=shifts)
+def calendar_view():
+    year = request.args.get('year', type=int, default=datetime.now().year)
+    month = request.args.get('month', type=int, default=datetime.now().month)
+
+    # Fix month overflow
+    if month < 1:
+        month = 12
+        year -= 1
+    elif month > 12:
+        month = 1
+        year += 1
+
+    # get how many days in month
+    num_days = calendar.monthrange(year, month)[1]
+    first_day = date(year, month, 1)
+    start_weekday = first_day.weekday()  # Monday=0
+
+    # build weeks matrix of date objects
+    weeks = []
+    day_counter = 1
+    for _ in range(6):  # max 6 weeks in a month
+        week = []
+        for i in range(7):
+            if len(weeks) == 0 and i < start_weekday:
+                week.append(None)
+            elif day_counter > num_days:
+                week.append(None)
+            else:
+                week.append(date(year, month, day_counter))
+                day_counter += 1
+        weeks.append(week)
+
+    # Query shifts for this month
+    shifts = Shift.query.filter(
+        extract('year', Shift.date) == year,
+        extract('month', Shift.date) == month
+    ).all()
+
+    # Group shifts by day number
+    shifts_by_day = {}
+    for shift in shifts:
+        day = shift.date.day
+        if day not in shifts_by_day:
+            shifts_by_day[day] = []
+        shifts_by_day[day].append(shift)
+
+    return render_template('calendar.html',
+                           weeks=weeks,
+                           month=month,
+                           year=year,
+                           shifts_by_day=shifts_by_day,
+                           calendar=calendar)
 
 @app.route('/add_shift', methods=['GET', 'POST'])
 def add_shift():
@@ -84,43 +132,25 @@ def delete_worker(worker_id):
     db.session.commit()
     return redirect(url_for('add_worker'))
 
-@app.route('/calendar')
-def calendar_view():
-    year = request.args.get('year', type=int, default=datetime.now().year)
-    month = request.args.get('month', type=int, default=datetime.now().month)
+@app.route('/add_shift/<date>', methods=['GET', 'POST'])
+def add_shift_with_date(date):
+    workers = Worker.query.all()
+    if request.method == 'POST':
+        start_time = request.form['start_time']
+        end_time = request.form['end_time']
+        worker_id = request.form['worker_id']
 
-    # Fix month overflow
-    if month < 1:
-        month = 12
-        year -= 1
-    elif month > 12:
-        month = 1
-        year += 1
+        new_shift = Shift(
+            date=datetime.strptime(date, '%Y-%m-%d').date(),
+            start_time=datetime.strptime(start_time, '%H:%M').time(),
+            end_time=datetime.strptime(end_time, '%H:%M').time(),
+            worker_id=worker_id
+        )
+        db.session.add(new_shift)
+        db.session.commit()
+        return redirect(url_for('calendar_view'))
 
-    # Generate calendar matrix
-    cal = calendar.Calendar()
-    month_days = cal.monthdayscalendar(year, month)
-
-    # Query shifts for this month
-    shifts = Shift.query.filter(
-        extract('year', Shift.date) == year,
-        extract('month', Shift.date) == month
-    ).all()
-
-    # Group shifts by day number
-    shifts_by_day = {}
-    for shift in shifts:
-        day = shift.date.day
-        if day not in shifts_by_day:
-            shifts_by_day[day] = []
-        shifts_by_day[day].append(shift)
-
-    return render_template('calendar.html',
-                           month_days=month_days,
-                           month=month,
-                           year=year,
-                           shifts_by_day=shifts_by_day,
-                           calendar=calendar)
+    return render_template('add_shift_for_date.html', date=date, workers=workers)
 
 print(app.url_map)
 
