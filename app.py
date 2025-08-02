@@ -2,23 +2,34 @@ from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import calendar
 from datetime import datetime
-from sqlalchemy import extract
+from sqlalchemy import extract, event
+from sqlalchemy.engine import Engine
+import sqlite3
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///schedule.db'
 db = SQLAlchemy(app)
 
+# Enable foreign key constraints in SQLite
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON;")
+        cursor.close()
+
 class Worker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50))
+    name = db.Column(db.String(50), nullable=False)
+
+    shifts = db.relationship('Shift', backref='worker', cascade="all, delete-orphan", passive_deletes=True)
 
 class Shift(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
-    worker_id = db.Column(db.Integer, db.ForeignKey('worker.id'), nullable=False)
-    worker = db.relationship('Worker', backref='shifts')
+    worker_id = db.Column(db.Integer, db.ForeignKey('worker.id', ondelete="CASCADE"), nullable=False)
 
 @app.route('/')
 def show_schedule():
