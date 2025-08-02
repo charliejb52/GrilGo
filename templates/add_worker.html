@@ -1,12 +1,24 @@
-{% extends "base.html" %}
+<html>
+<head>
+    <title>Manage Workers</title>
+</head>
+<body>
+    <h1>Add a New Worker</h1>
+    <form method="post">
+        <input type="text" name="name" placeholder="Worker name" required>
+        <button type="submit">Add Worker</button>
+    </form>
 
-{% block content %}
-  <h2>Add a New Worker</h2>
-  <form method="POST">
-    <div class="mb-3">
-      <label for="name">Worker Name:</label>
-      <input type="text" name="name" id="name" class="form-control" required>
-    </div>
-    <button type="submit" class="btn btn-primary">Add Worker</button>
-  </form>
-{% endblock %}
+    <h2>Current Workers</h2>
+    <ul>
+        {% for worker in workers %}
+            <li>
+                {{ worker.name }}
+                <form method="post" action="{{ url_for('delete_worker', worker_id=worker.id) }}" style="display:inline;">
+                    <button type="submit" onclick="return confirm('Delete {{ worker.name }}?')">Delete</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

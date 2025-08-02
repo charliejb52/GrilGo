@@ -57,12 +57,21 @@ def add_shift():
 def add_worker():
     if request.method == 'POST':
         name = request.form['name']
-        new_worker = Worker(name=name)
-        db.session.add(new_worker)
-        db.session.commit()
-        return redirect(url_for('show_schedule'))
-    
-    return render_template('add_worker.html')
+        if name.strip():  # basic validation
+            new_worker = Worker(name=name)
+            db.session.add(new_worker)
+            db.session.commit()
+        return redirect(url_for('add_worker'))
+
+    workers = Worker.query.order_by(Worker.name).all()
+    return render_template('add_worker.html', workers=workers)
+
+@app.route('/delete_worker/<int:worker_id>', methods=['POST'])
+def delete_worker(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+    db.session.delete(worker)
+    db.session.commit()
+    return redirect(url_for('add_worker'))
 
 @app.route('/calendar')
 def calendar_view():
