@@ -24,6 +24,9 @@ class Worker(db.Model):
 
     shifts = db.relationship('Shift', backref='worker', cascade="all, delete-orphan", passive_deletes=True)
 
+    # Example: "Mon:9-17,Tue:12-20,Wed:off,..."
+    availability = db.Column(db.String, nullable=True)
+
 class Shift(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
@@ -116,10 +119,22 @@ def add_shift():
 def add_worker():
     if request.method == 'POST':
         name = request.form['name']
+        availability = []
+
+        for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']:
+            if request.form.get(f'{day}_off'):
+                availability.append(f"{day.capitalize()}:off")
+            else:
+                start = request.form.get(f'{day}_start')
+                end = request.form.get(f'{day}_end')
+                if start and end:
+                    availability.append(f"{day.capitalize()}:{start}-{end}")
+
         if name.strip():  # basic validation
-            new_worker = Worker(name=name)
+            new_worker = Worker(name=name, availability=','.join(availability))
             db.session.add(new_worker)
             db.session.commit()
+
         return redirect(url_for('add_worker'))
 
     workers = Worker.query.order_by(Worker.name).all()

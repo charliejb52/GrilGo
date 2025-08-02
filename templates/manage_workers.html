@@ -8,10 +8,24 @@
     <a href="{{ url_for('calendar_view') }}" class="btn btn-secondary">Back to calendar</a>
 </head>
 <body>
-    <h1>Add a New Worker</h1>
-    <form method="post">
-        <input type="text" name="name" placeholder="Worker name" required>
-        <button type="submit">Add Worker</button>
+    <form method="POST">
+        <label for="name">Worker Name:</label>
+        <input type="text" name="name" required><br>
+
+        {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+            <fieldset>
+                <legend>{{ day }}</legend>
+                <label>Start:</label>
+                <input type="time" name="{{ day.lower() }}_start">
+                <label>End:</label>
+                <input type="time" name="{{ day.lower() }}_end">
+                <label>
+                    <input type="checkbox" name="{{ day.lower() }}_off"> Off
+                </label>
+            </fieldset>
+        {% endfor %}
+
+        <button type="submit">Save Worker</button>
     </form>
 
     <h2>Current Workers</h2>
