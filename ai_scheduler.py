@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, time
-from app import db, Worker, Shift
+from models import db, Worker, Shift
 import calendar
 from pulp import LpProblem, LpVariable, LpBinary, lpSum, LpMinimize
+from collections import defaultdict
 
 # Define the 4 standard shifts
 SHIFT_TYPES = {
@@ -67,19 +68,63 @@ def build_optimizer(start_date):
         for w in workers
     }
 
-    prob = LpProblem("Shift_Scheduling", LpMinimize)  # We’ll define the objective later
+    prob = LpProblem("Shift_Scheduling", LpMinimize)
 
-    # Binary decision variables: x[(w.id, i)] = 1 if worker w is assigned to shift i
+    # Binary decision variables
     x = {}
     for i, shift in enumerate(shifts):
-        shift_day = shift['date'].strftime('%A')  # e.g., 'Monday'
+        shift_day = shift['date'].strftime('%A')
         for w in workers:
             avail = worker_avail[w.id].get(shift_day)
             if not avail:
-                continue  # worker is OFF that day
+                continue
 
             avail_start, avail_end = avail
             if avail_start <= shift['start'] and avail_end >= shift['end']:
                 x[(w.id, i)] = LpVariable(f"x_{w.id}_{i}", cat=LpBinary)
 
-    return prob, x, workers, shifts, worker_avail
+    # OBJECTIVE: Minimize total number of assigned shifts (you can change this)
+    prob += lpSum(x.values()), "Minimize_total_assignments"
+
+    # CONSTRAINT 1: Every shift must be assigned to exactly one worker
+    for i in range(len(shifts)):
+        prob += lpSum(x[(w.id, i)] for w in workers if (w.id, i) in x) == 1, f"Shift_{i}_coverage"
+
+    # CONSTRAINT 2: Max 5 shifts per worker
+    for w in workers:
+        prob += lpSum(x[(w.id, i)] for i in range(len(shifts)) if (w.id, i) in x) <= 5, f"Max_shifts_{w.id}"
+
+    # CONSTRAINT 3: Max ~20 hours per worker (you can fine-tune this threshold)
+    for w in workers:
+        prob += lpSum(
+            ((datetime.combine(start_date, shifts[i]['end']) -
+              datetime.combine(start_date, shifts[i]['start'])).seconds / 3600) * x[(w.id, i)]
+            for i in range(len(shifts)) if (w.id, i) in x
+        ) <= 20, f"Max_hours_{w.id}"
+
+    # CONSTRAINT 4: No worker can be assigned more than one shift per day
+    for w in workers:
+        shifts_by_day = defaultdict(list)
+        for i, shift in enumerate(shifts):
+            if (w.id, i) in x:
+                shifts_by_day[shift['date']].append(x[(w.id, i)])
+        for shift_date, vars_on_date in shifts_by_day.items():
+            prob += lpSum(vars_on_date) <= 1, f"Max_one_shift_per_day_w{w.id}_{shift_date}"
+
+    # SOLVE
+    prob.solve()
+
+    # SAVE assigned shifts to DB
+    for (w_id, i), var in x.items():
+        if var.varValue == 1:
+            shift = shifts[i]
+            new_shift = Shift(
+                date=shift['date'],
+                start_time=shift['start'],
+                end_time=shift['end'],
+                worker_id=w_id
+            )
+            db.session.add(new_shift)
+
+    db.session.commit()
+    print("✅ Optimized schedule saved.")

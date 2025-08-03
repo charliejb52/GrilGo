@@ -1,0 +1,6 @@
+<!-- templates/generate.html -->
+<form action="{{ url_for('generate') }}" method="POST">
+  <label for="start_date">Select Start Date (must be a Monday):</label>
+  <input type="date" id="start_date" name="start_date" required>
+  <button type="submit">Generate Optimized Schedule</button>
+</form>

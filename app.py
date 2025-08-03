@@ -1,14 +1,20 @@
 from flask import Flask, render_template, request, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
+from models import db, Worker, Shift
 import calendar
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy import extract, event
 from sqlalchemy.engine import Engine
 import sqlite3
+from ai_scheduler import build_optimizer
+
+
 
 app = Flask(__name__)
+app.secret_key = 'yo-gabba-gabba'
+from flask import flash
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///schedule.db'
-db = SQLAlchemy(app)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
 
 # Enable foreign key constraints in SQLite
 @event.listens_for(Engine, "connect")
@@ -17,22 +23,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON;")
         cursor.close()
-
-class Worker(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
-
-    shifts = db.relationship('Shift', backref='worker', cascade="all, delete-orphan", passive_deletes=True)
-
-    # Example: "Mon:9-17,Tue:12-20,Wed:off,..."
-    availability = db.Column(db.String, nullable=True)
-
-class Shift(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, nullable=False)
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
-    worker_id = db.Column(db.Integer, db.ForeignKey('worker.id', ondelete="CASCADE"), nullable=False)
 
 @app.route('/')
 def calendar_view():
@@ -166,6 +156,43 @@ def add_shift_with_date(date):
         return redirect(url_for('calendar_view'))
 
     return render_template('add_shift_for_date.html', date=date, workers=workers)
+
+@app.route('/clear_schedule', methods=['POST'])
+def clear_schedule():
+    date_str = request.form.get('start_date')
+    if not date_str:
+        flash('No date provided.', 'error')
+        return redirect(url_for('calendar_view'))
+
+    try:
+        start_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        end_date = start_date + timedelta(days=7)
+
+        Shift.query.filter(Shift.date >= start_date, Shift.date < end_date).delete()
+        db.session.commit()
+        flash(f'Schedule cleared for week starting {start_date}.', 'success')
+    except Exception as e:
+        flash(f'Error clearing schedule: {str(e)}', 'error')
+
+    return redirect(url_for('calendar_view'))
+
+@app.route('/generate', methods=['GET', 'POST'])
+def generate():
+    if request.method == 'POST':
+        # Parse the selected date from form
+        start_date_str = request.form['start_date']
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return "Invalid date format", 400
+
+        if start_date.weekday() != 0:  # 0 = Monday
+            return "Start date must be a Monday", 400
+
+        build_optimizer(start_date)
+        return redirect(url_for('calendar_view'))  # or your schedule view
+
+    return render_template('choose_starting_date.html')
 
 print(app.url_map)
 
