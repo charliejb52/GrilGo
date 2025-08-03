@@ -24,29 +24,38 @@ DAY_MAP = {
     'Sun': 6
 }
 
-def parse_worker_availability(worker):
-    avail = {}
+def parse_worker_unavailability(worker):
+    # Start by assuming worker is available all day every day
+    avail = {i: [(time(0, 0), time(23, 59))] for i in range(7)}
+
     if worker.availability:
         for entry in worker.availability.split(','):
             if ':' not in entry:
-                continue  # Skip malformed entry
+                continue
             try:
                 day_abbr, value = entry.split(':', 1)
-                day_abbr = day_abbr.strip()
-                day = DAY_MAP.get(day_abbr)
+                day = DAY_MAP.get(day_abbr.strip())
                 if day is None:
-                    continue  # Unknown day abbreviation
+                    continue
 
-                if value.strip().lower() == 'off':
-                    avail[day] = None
+                value = value.strip().lower()
+                if value == 'all':
+                    # Not available at all — remove any available intervals
+                    avail[day] = []
                 else:
-                    start_str, end_str = value.split('-')
-                    avail[day] = (
-                        datetime.strptime(start_str.strip(), '%H:%M').time(),
-                        datetime.strptime(end_str.strip(), '%H:%M').time()
-                    )
+                    unavail_start, unavail_end = [
+                        datetime.strptime(t.strip(), '%H:%M').time()
+                        for t in value.split('-')
+                    ]
+
+                    # If value exists, subtract the unavailable interval
+                    avail[day] = []
+                    if unavail_start > time(0, 0):
+                        avail[day].append((time(0, 0), unavail_start))
+                    if unavail_end < time(23, 59):
+                        avail[day].append((unavail_end, time(23, 59)))
             except ValueError:
-                continue  # Skip any malformed entry
+                continue
     return avail
 
 def generate_week_shifts(start_date):
@@ -71,7 +80,7 @@ def build_optimizer(start_date):
 
     # Parse availability once
     worker_avail = {
-        w.id: parse_worker_availability(w)
+        w.id: parse_worker_unavailability(w)
         for w in workers
     }
 
@@ -81,13 +90,14 @@ def build_optimizer(start_date):
     x = {}
     for i, shift in enumerate(shifts):
         for w in workers:
-            avail = worker_avail[w.id].get(shift['date'].weekday())  # 0=Monday ... 6=Sunday
-            if not avail:
-                continue
-
-            avail_start, avail_end = avail
-            if avail_start <= shift['start'] and avail_end >= shift['end']:
-                x[(w.id, i)] = LpVariable(f"x_{w.id}_{i}", cat=LpBinary)
+            day_index = shift['date'].weekday()
+            intervals = worker_avail[w.id].get(day_index)
+            if intervals is None:
+                continue  # not available at all
+            for interval_start, interval_end in intervals:
+                if interval_start <= shift['start'] and interval_end >= shift['end']:
+                    x[(w.id, i)] = LpVariable(f"x_{w.id}_{i}", cat=LpBinary)
+                    break  # only need one match
 
     print(f"✅ Created {len(x)} eligible assignment variables.")
 

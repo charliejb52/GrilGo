@@ -105,37 +105,39 @@ def add_shift():
 
     return render_template('add_shift.html', workers=workers)
 
-@app.route('/add_worker', methods=['GET', 'POST'])
-def add_worker():
-    if request.method == 'POST':
-        name = request.form['name']
-        availability = []
+@app.route("/workers", methods=["GET", "POST"])
+def manage_workers():
+    if request.method == "POST":
+        name = request.form.get("name")
+        availability_entries = []
 
-        for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']:
-            if request.form.get(f'{day}_off'):
-                availability.append(f"{day.capitalize()}:off")
-            else:
-                start = request.form.get(f'{day}_start')
-                end = request.form.get(f'{day}_end')
-                if start and end:
-                    availability.append(f"{day.capitalize()}:{start}-{end}")
+        for day_abbr in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
+            start = request.form.get(f"{day_abbr.lower()}_start")
+            end = request.form.get(f"{day_abbr.lower()}_end")
+            all_day_unavailable = request.form.get(f"{day_abbr.lower()}_all")
 
-        if name.strip():  # basic validation
-            new_worker = Worker(name=name, availability=','.join(availability))
-            db.session.add(new_worker)
-            db.session.commit()
+            if all_day_unavailable:
+                availability_entries.append(f"{day_abbr}: all")
+            elif start and end:
+                availability_entries.append(f"{day_abbr}: {start}-{end}")
+            # else: assume available all day (by omitting the day)
 
-        return redirect(url_for('add_worker'))
+        availability_string = ",".join(availability_entries)
 
-    workers = Worker.query.order_by(Worker.name).all()
-    return render_template('manage_workers.html', workers=workers)
+        new_worker = Worker(name=name, availability=availability_string)
+        db.session.add(new_worker)
+        db.session.commit()
+        return redirect(url_for("manage_workers"))
+
+    workers = Worker.query.all()
+    return render_template("manage_workers.html", workers=workers)
 
 @app.route('/delete_worker/<int:worker_id>', methods=['POST'])
 def delete_worker(worker_id):
     worker = Worker.query.get_or_404(worker_id)
     db.session.delete(worker)
     db.session.commit()
-    return redirect(url_for('add_worker'))
+    return redirect(url_for('manage_workers'))
 
 @app.route('/add_shift/<date>', methods=['GET', 'POST'])
 def add_shift_with_date(date):
