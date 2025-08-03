@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, time
 from app import db, Worker, Shift
 import calendar
+from pulp import LpProblem, LpVariable, LpBinary, lpSum, LpMinimize
 
 # Define the 4 standard shifts
 SHIFT_TYPES = {
@@ -43,87 +44,42 @@ def parse_worker_availability(worker):
                 continue  # Skip any badly formatted availability
     return avail
 
+def generate_week_shifts(start_date):
+    all_shifts = []
+    for i in range(7):
+        current_date = start_date + timedelta(days=i)
+        for shift_type, (start, end) in SHIFT_TYPES.items():
+            all_shifts.append({
+                'date': current_date,
+                'type': shift_type,
+                'start': start,
+                'end': end
+            })
+    return all_shifts
 
-def generate_schedule(start_date):
+def build_optimizer(start_date):
     workers = Worker.query.all()
-    print(f"Found {len(workers)} workers in the system.\n")
+    shifts = generate_week_shifts(start_date)
 
-    worker_data = {
-        w.id: {
-            'obj': w,
-            'availability': parse_worker_availability(w),
-            'assigned_shifts': [],
-            'total_hours': 0
-        } for w in workers
+    # Parse availability once
+    worker_avail = {
+        w.id: parse_worker_availability(w)
+        for w in workers
     }
 
-    for w_id, data in worker_data.items():
-        print(f"{data['obj'].name} availability:")
-        for day, hours in data['availability'].items():
-            print(f"  {day}: {hours}")
-        print()
+    prob = LpProblem("Shift_Scheduling", LpMinimize)  # We’ll define the objective later
 
-    for i in range(7):  # Loop over 7 days
-        current_date = start_date + timedelta(days=i)
-        weekday = DAYS[current_date.weekday()]
-        print(f"\n=== {weekday} ({current_date}) ===")
+    # Binary decision variables: x[(w.id, i)] = 1 if worker w is assigned to shift i
+    x = {}
+    for i, shift in enumerate(shifts):
+        shift_day = shift['date'].strftime('%A')  # e.g., 'Monday'
+        for w in workers:
+            avail = worker_avail[w.id].get(shift_day)
+            if not avail:
+                continue  # worker is OFF that day
 
-        for shift_name, (start_time, end_time) in SHIFT_TYPES.items():
-            print(f"Trying to assign shift: {shift_name} ({start_time} - {end_time})")
-            shift_duration = (datetime.combine(current_date, end_time) -
-                              datetime.combine(current_date, start_time)).seconds / 3600
+            avail_start, avail_end = avail
+            if avail_start <= shift['start'] and avail_end >= shift['end']:
+                x[(w.id, i)] = LpVariable(f"x_{w.id}_{i}", cat=LpBinary)
 
-            assigned = False
-            for w_id, w_data in worker_data.items():
-                worker = w_data['obj']
-                avail = w_data['availability'].get(weekday)
-
-                if not avail:
-                    print(f"  {worker.name} is OFF")
-                    continue
-
-                avail_start, avail_end = avail
-                print(f"  {worker.name} available: {avail_start} - {avail_end}")
-
-                if not (avail_start <= start_time and avail_end >= end_time):
-                    print(f"    ✖ Shift not fully within availability")
-                    continue
-
-                if len(w_data['assigned_shifts']) >= 5:
-                    print(f"    ✖ Max shifts reached")
-                    continue
-
-                if w_data['total_hours'] + shift_duration > 20:
-                    print(f"    ✖ Would exceed 20 hours/week")
-                    continue
-
-                conflict = False
-                for existing_shift in w_data['assigned_shifts']:
-                    gap = abs((datetime.combine(current_date, start_time) -
-                               datetime.combine(existing_shift['date'], existing_shift['end'])).total_seconds()) / 3600
-                    if gap < 12:
-                        conflict = True
-                        print(f"    ✖ Conflict with another shift (gap = {gap:.1f}h)")
-                        break
-                if conflict:
-                    continue
-
-                # ✅ Assign shift
-                shift = Shift(
-                    date=current_date,
-                    start_time=start_time,
-                    end_time=end_time,
-                    worker_id=w_id
-                )
-                db.session.add(shift)
-                w_data['assigned_shifts'].append({'date': current_date, 'start': start_time, 'end': end_time})
-                w_data['total_hours'] += shift_duration
-                print(f"    ✔ Assigned to {worker.name}")
-                assigned = True
-                break
-
-            if not assigned:
-                print(f"  ⚠ No available worker for {shift_name} on {weekday}")
-
-    db.session.commit()
-    print("\n✅ Schedule generation complete.")
+    return prob, x, workers, shifts, worker_avail
