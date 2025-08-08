@@ -6,6 +6,7 @@ from sqlalchemy import extract, event
 from sqlalchemy.engine import Engine
 import sqlite3
 from ai_scheduler import build_optimizer
+from flask_login import login_user, logout_user, login_required, current_user
 
 
 
@@ -24,7 +25,52 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.execute("PRAGMA foreign_keys=ON;")
         cursor.close()
 
-@app.route('/')
+# Define User class and methods
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # 'employee' or 'manager'
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+from flask_login import LoginManager
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and user.check_password(request.form['password']):
+            login_user(user)
+            flash('Logged in successfully.')
+            return redirect(url_for('dashboard'))
+        flash('Invalid username or password.')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Logged out.')
+    return redirect(url_for('login'))
+
+@app.route('/dashboard')
+@login_required
 def calendar_view():
     year = request.args.get('year', type=int, default=datetime.now().year)
     month = request.args.get('month', type=int, default=datetime.now().month)
