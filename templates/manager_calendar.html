@@ -2,11 +2,11 @@
 
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <a href="{{ url_for('calendar_view', month=month-1, year=year) }}" class="btn btn-outline-secondary">« Previous</a>
+        <a href="{{ url_for('dashboard_manager', month=month-1, year=year) }}" class="btn btn-outline-secondary">« Previous</a>
 
         <h2>{{ calendar.month_name[month] }} {{ year }}</h2>
 
-        <a href="{{ url_for('calendar_view', month=month+1, year=year) }}" class="btn btn-outline-secondary">Next »</a>
+        <a href="{{ url_for('dashboard_manager', month=month+1, year=year) }}" class="btn btn-outline-secondary">Next »</a>
     </div> 
     <table>
         <tr>
@@ -41,6 +41,7 @@
     </table>
 <a href="{{ url_for('manage_workers') }}" class="btn btn-secondary">Manage workers</a>
 <a href="{{ url_for('generate') }}" class="btn btn-secondary">Generate Schedule</a>
+<a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
 <form action="{{ url_for('clear_schedule') }}" method="post" style="margin-top: 20px;">
   <label for="start_date">Start date (Monday):</label>
   <input type="date" name="start_date" required>

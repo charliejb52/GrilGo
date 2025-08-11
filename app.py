@@ -29,14 +29,14 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 
-class User(UserMixin, db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'employee' or 'manager'
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
@@ -58,7 +58,10 @@ def login():
         if user and user.check_password(request.form['password']):
             login_user(user)
             flash('Logged in successfully.')
-            return redirect(url_for('dashboard'))
+            if user.role == 'manager':
+                return redirect(url_for('dashboard_manager'))
+            else:
+                return redirect(url_for('dashboard_employee'))
         flash('Invalid username or password.')
     return render_template('login.html')
 
@@ -69,9 +72,9 @@ def logout():
     flash('Logged out.')
     return redirect(url_for('login'))
 
-@app.route('/dashboard')
+@app.route('/dashboard_manager')
 @login_required
-def calendar_view():
+def dashboard_manager():
     year = request.args.get('year', type=int, default=datetime.now().year)
     month = request.args.get('month', type=int, default=datetime.now().month)
 
@@ -117,7 +120,62 @@ def calendar_view():
             shifts_by_day[day] = []
         shifts_by_day[day].append(shift)
 
-    return render_template('calendar.html',
+    return render_template('manager_calendar.html',
+                           weeks=weeks,
+                           month=month,
+                           year=year,
+                           shifts_by_day=shifts_by_day,
+                           calendar=calendar)
+
+@app.route('/dashboard_employee')
+@login_required
+def dashboard_employee():
+    year = request.args.get('year', type=int, default=datetime.now().year)
+    month = request.args.get('month', type=int, default=datetime.now().month)
+
+    # Fix month overflow
+    if month < 1:
+        month = 12
+        year -= 1
+    elif month > 12:
+        month = 1
+        year += 1
+
+    # get how many days in month
+    num_days = calendar.monthrange(year, month)[1]
+    first_day = date(year, month, 1)
+    start_weekday = first_day.weekday()  # Monday=0
+
+    # build weeks matrix of date objects
+    weeks = []
+    day_counter = 1
+    for _ in range(6):  # max 6 weeks in a month
+        week = []
+        for i in range(7):
+            if len(weeks) == 0 and i < start_weekday:
+                week.append(None)
+            elif day_counter > num_days:
+                week.append(None)
+            else:
+                week.append(date(year, month, day_counter))
+                day_counter += 1
+        weeks.append(week)
+
+    # Query shifts for this month
+    shifts = Shift.query.filter(
+        extract('year', Shift.date) == year,
+        extract('month', Shift.date) == month
+    ).all()
+
+    # Group shifts by day number
+    shifts_by_day = {}
+    for shift in shifts:
+        day = shift.date.day
+        if day not in shifts_by_day:
+            shifts_by_day[day] = []
+        shifts_by_day[day].append(shift)
+
+    return render_template('employee_calendar.html',
                            weeks=weeks,
                            month=month,
                            year=year,
@@ -147,7 +205,7 @@ def add_shift():
 
         db.session.add(new_shift)
         db.session.commit()
-        return redirect(url_for('calendar_view'))
+        return redirect(url_for('dashboard_manager'))
 
     return render_template('add_shift.html', workers=workers)
 
@@ -201,7 +259,7 @@ def add_shift_with_date(date):
         )
         db.session.add(new_shift)
         db.session.commit()
-        return redirect(url_for('calendar_view'))
+        return redirect(url_for('dashboard_manager'))
 
     return render_template('add_shift_for_date.html', date=date, workers=workers)
 
@@ -210,7 +268,7 @@ def clear_schedule():
     date_str = request.form.get('start_date')
     if not date_str:
         flash('No date provided.', 'error')
-        return redirect(url_for('calendar_view'))
+        return redirect(url_for('dashboard_manager'))
 
     try:
         start_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -222,7 +280,7 @@ def clear_schedule():
     except Exception as e:
         flash(f'Error clearing schedule: {str(e)}', 'error')
 
-    return redirect(url_for('calendar_view'))
+    return redirect(url_for('dashboard_manager'))
 
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
@@ -238,7 +296,7 @@ def generate():
             return "Start date must be a Monday", 400
 
         build_optimizer(start_date)
-        return redirect(url_for('calendar_view'))  # or your schedule view
+        return redirect(url_for('dashboard_manager'))  # or your schedule view
 
     return render_template('choose_starting_date.html')
 
