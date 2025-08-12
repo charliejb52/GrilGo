@@ -42,6 +42,7 @@
 <a href="{{ url_for('manage_workers') }}" class="btn btn-secondary">Manage workers</a>
 <a href="{{ url_for('generate') }}" class="btn btn-secondary">Generate Schedule</a>
 <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
+<a href="{{ url_for('view_passwords') }}" class="btn btn-secondary">Employee Passwords</a>
 <form action="{{ url_for('clear_schedule') }}" method="post" style="margin-top: 20px;">
   <label for="start_date">Start date (Monday):</label>
   <input type="date" name="start_date" required>

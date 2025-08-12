@@ -221,7 +221,7 @@ def manage_workers():
         password = generate_random_password()
         new_user.set_password(password)
         new_worker.user = new_user
-        
+
         db.session.add(new_worker)
         db.session.commit()
 
@@ -231,6 +231,13 @@ def manage_workers():
 
     workers = Worker.query.all()
     return render_template("manage_workers.html", workers=workers)
+
+@app.route('/manage/view-passwords')
+@login_required
+def view_passwords():
+
+    users = User.query.filter(User.role == 'employee').all()
+    return render_template('view_passwords.html', users=users)
 
 @app.route('/delete_worker/<int:worker_id>', methods=['POST'])
 def delete_worker(worker_id):
@@ -295,6 +302,51 @@ def generate():
         return redirect(url_for('dashboard_manager'))  # or your schedule view
 
     return render_template('choose_starting_date.html')
+
+@app.route('/set-availability', methods=['GET', 'POST'])
+@login_required
+def set_availability():
+
+    worker = Worker.query.filter_by(user_id=current_user.id).first()
+    if not worker:
+        return "No worker profile found.", 404
+
+    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    availability_map = {}  # {'Mon': {'all': True}, 'Tue': {'start': '09:00', 'end': '13:00'}}
+
+    # Parse current availability string into a dictionary for the form
+    if worker.availability:
+        for entry in worker.availability.split(','):
+            day, times = entry.split(': ')
+            if times == "all":
+                availability_map[day] = {"all": True}
+            else:
+                start, end = times.split('-')
+                availability_map[day] = {"start": start, "end": end}
+
+    if request.method == 'POST':
+        availability_entries = []
+        for day in days:
+            start = request.form.get(f"{day.lower()}_start")
+            end = request.form.get(f"{day.lower()}_end")
+            all_day_unavailable = request.form.get(f"{day.lower()}_all")
+
+            if all_day_unavailable:
+                availability_entries.append(f"{day}: all")
+            elif start and end:
+                availability_entries.append(f"{day}: {start}-{end}")
+            # Else: omit the day entirely = available all day
+
+        worker.availability = ",".join(availability_entries)
+        db.session.commit()
+        flash("Availability updated.", "success")
+        return redirect(url_for('dashboard_employee'))
+
+    return render_template(
+        "set_availability.html",
+        days=days,
+        availability_map=availability_map
+    )
 
 print(app.url_map)
 

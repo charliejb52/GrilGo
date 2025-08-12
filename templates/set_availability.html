@@ -1,19 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Set Your Availability</h2>
 <form method="POST">
-  <label for="name">Worker Name:</label>
-  <input type="text" name="name" required><br>
-
-  {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
-    <fieldset>
-      <legend>{{ day }}</legend>
-      <label>Start:</label>
-      <input type="time" name="{{ day.lower() }}_start">
-      <label>End:</label>
-      <input type="time" name="{{ day.lower() }}_end">
-      <label>
-        <input type="checkbox" name="{{ day.lower() }}_all"> All
-      </label>
-    </fieldset>
-  {% endfor %}
-
-  <button type="submit">Save Worker</button>
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>Day</th>
+            <th>All Day Unavailable</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+        </tr>
+        {% for day in days %}
+        <tr>
+            <td>{{ day }}</td>
+            <td>
+                <input type="checkbox" name="{{ day.lower() }}_all" value="1"
+                       {% if availability_map.get(day, {}).get('all') %}checked{% endif %}>
+            </td>
+            <td>
+                <input type="time" name="{{ day.lower() }}_start"
+                       value="{{ availability_map.get(day, {}).get('start', '') }}">
+            </td>
+            <td>
+                <input type="time" name="{{ day.lower() }}_end"
+                       value="{{ availability_map.get(day, {}).get('end', '') }}">
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <br>
+    <button type="submit">Save</button>
 </form>
+{% endblock %}
