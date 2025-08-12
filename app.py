@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for
-from models import db, Worker, Shift
+from models import db, Worker, Shift, User, generate_random_password
 import calendar
 from datetime import datetime, date, timedelta
 from sqlalchemy import extract, event
@@ -26,20 +26,8 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.close()
 
 # Define User class and methods
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin
 
-class User(db.Model, UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # 'employee' or 'manager'
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
     
 from flask_login import LoginManager
 
@@ -229,8 +217,16 @@ def manage_workers():
         availability_string = ",".join(availability_entries)
 
         new_worker = Worker(name=name, availability=availability_string)
+        new_user = User(username=name, role="employee")
+        password = generate_random_password()
+        new_user.set_password(password)
+        new_worker.user = new_user
+        
         db.session.add(new_worker)
         db.session.commit()
+
+        flash(f"Worker created. Username: {name}, Password: {password}", "success")
+
         return redirect(url_for("manage_workers"))
 
     workers = Worker.query.all()
