@@ -1,3 +1,6 @@
+{% extends "base.html" %}
+
+{% block content %}
 <form method="POST" action="{{ url_for('generate') }}">
     <label for="month">Month:</label>
     <select name="month" id="month">
@@ -10,4 +13,7 @@
 
     <label for="year">Year:</label>
     <input type="number" name="year" id="year" value="{{ current_year }}" min="2023" max="2100">
-        <a href="{{ url_for('generate') }}" class="btn btn-secondary">generate</a>
+
+    <button type="submit" class="btn btn-secondary">Generate</button>
+</form>
+{% endblock %}
