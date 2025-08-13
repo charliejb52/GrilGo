@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
+import json
 
 
 db = SQLAlchemy()
@@ -18,7 +19,13 @@ class Worker(db.Model):
     user = db.relationship('User', backref=db.backref('worker', uselist=False))
 
     # Example: "Mon:9-17,Tue:12-20,Wed:off,..."
-    availability = db.Column(db.String, nullable=True)
+    unavailable_days = db.Column(db.Text, default='[]')  # JSON string like {"2025-08-05": true, "2025-08-13": true}
+
+    def get_unavailable_dates(self):
+        return json.loads(self.unavailable_dates or "[]")
+
+    def set_unavailable_dates(self, dates_list):
+        self.unavailable_dates = json.dumps(dates_list)
 
 class Shift(db.Model):
     id = db.Column(db.Integer, primary_key=True)

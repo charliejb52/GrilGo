@@ -1,12 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, Blueprint, jsonify
 from models import db, Worker, Shift, User, generate_random_password
 import calendar
 from datetime import datetime, date, timedelta
 from sqlalchemy import extract, event
 from sqlalchemy.engine import Engine
 import sqlite3
-from ai_scheduler import build_optimizer
+from ai_scheduler import build_monthly_optimizer
 from flask_login import login_user, logout_user, login_required, current_user
+import json
 
 
 
@@ -201,22 +202,8 @@ def add_shift():
 def manage_workers():
     if request.method == "POST":
         name = request.form.get("name")
-        availability_entries = []
 
-        for day_abbr in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
-            start = request.form.get(f"{day_abbr.lower()}_start")
-            end = request.form.get(f"{day_abbr.lower()}_end")
-            all_day_unavailable = request.form.get(f"{day_abbr.lower()}_all")
-
-            if all_day_unavailable:
-                availability_entries.append(f"{day_abbr}: all")
-            elif start and end:
-                availability_entries.append(f"{day_abbr}: {start}-{end}")
-            # else: assume available all day (by omitting the day)
-
-        availability_string = ",".join(availability_entries)
-
-        new_worker = Worker(name=name, availability=availability_string)
+        new_worker = Worker(name=name)
         new_user = User(username=name, role="employee")
         password = generate_random_password()
         new_user.set_password(password)
@@ -288,65 +275,66 @@ def clear_schedule():
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
     if request.method == 'POST':
-        # Parse the selected date from form
-        start_date_str = request.form['start_date']
+        # Get month and year from the form
+        month_str = request.form.get('month')
+        year_str = request.form.get('year')
+
+        # Validate input
         try:
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-        except ValueError:
-            return "Invalid date format", 400
+            month = int(month_str)
+            year = int(year_str)
+            if not (1 <= month <= 12):
+                raise ValueError
+        except (ValueError, TypeError):
+            return "Invalid month or year", 400
 
-        if start_date.weekday() != 0:  # 0 = Monday
-            return "Start date must be a Monday", 400
+        # Call your monthly optimizer
+        build_monthly_optimizer(year, month)
 
-        build_optimizer(start_date)
-        return redirect(url_for('dashboard_manager'))  # or your schedule view
+        return redirect(url_for('dashboard_manager'))  # Or wherever you want to display results
 
-    return render_template('choose_starting_date.html')
-
-@app.route('/set-availability', methods=['GET', 'POST'])
-@login_required
-def set_availability():
-
-    worker = Worker.query.filter_by(user_id=current_user.id).first()
-    if not worker:
-        return "No worker profile found.", 404
-
-    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    availability_map = {}  # {'Mon': {'all': True}, 'Tue': {'start': '09:00', 'end': '13:00'}}
-
-    # Parse current availability string into a dictionary for the form
-    if worker.availability:
-        for entry in worker.availability.split(','):
-            day, times = entry.split(': ')
-            if times == "all":
-                availability_map[day] = {"all": True}
-            else:
-                start, end = times.split('-')
-                availability_map[day] = {"start": start, "end": end}
-
-    if request.method == 'POST':
-        availability_entries = []
-        for day in days:
-            start = request.form.get(f"{day.lower()}_start")
-            end = request.form.get(f"{day.lower()}_end")
-            all_day_unavailable = request.form.get(f"{day.lower()}_all")
-
-            if all_day_unavailable:
-                availability_entries.append(f"{day}: all")
-            elif start and end:
-                availability_entries.append(f"{day}: {start}-{end}")
-            # Else: omit the day entirely = available all day
-
-        worker.availability = ",".join(availability_entries)
-        db.session.commit()
-        flash("Availability updated.", "success")
-        return redirect(url_for('dashboard_employee'))
+    # Defaults for month/year selector
+    current_year = datetime.now().year
+    current_month = datetime.now().month
 
     return render_template(
-        "set_availability.html",
-        days=days,
-        availability_map=availability_map
+        'choose_month.html',
+        current_month=current_month,
+        current_year=current_year
     )
+
+@app.route("/availability", methods=["GET", "POST"])
+@login_required
+def set_availability():
+    # Find the worker profile linked to this user
+    worker = Worker.query.filter_by(user_id=current_user.id).first()
+    if not worker:
+        flash("No worker profile found for this account.", "danger")
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        # Get JSON list from request
+        unavailable_days = request.form.get("unavailable_days", "[]")
+        try:
+            parsed_days = json.loads(unavailable_days)
+        except json.JSONDecodeError:
+            parsed_days = []
+            flash("Invalid date data submitted.", "danger")
+
+        # Save to database as JSON string
+        worker.unavailable_days = json.dumps(parsed_days)
+        db.session.commit()
+
+        flash("Availability updated successfully.", "success")
+        return redirect(url_for("set_availability"))
+
+    # If GET, load existing unavailable days
+    try:
+        unavailable_days = json.loads(worker.unavailable_days or "[]")
+    except json.JSONDecodeError:
+        unavailable_days = []
+
+    return render_template("availability.html", unavailable_days=unavailable_days)
 
 print(app.url_map)
 

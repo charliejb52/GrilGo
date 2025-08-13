@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Set Monthly Availability</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <style>
+        /* Slightly different color for unavailable days */
+        .unavailable-day {
+            background-color: rgba(255, 0, 0, 0.25) !important;
+        }
+        #calendar {
+            max-width: 800px;
+            margin: 40px auto;
+        }
+        .save-btn {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .save-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-align:center;">Set Your Monthly Availability</h1>
+    
+    <div id="calendar"></div>
+
+    <form id="availability-form" method="POST">
+        <input type="hidden" name="unavailable_days" id="unavailable-days">
+        <button type="submit" class="save-btn">Save Availability</button>
+    </form>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script>
+        // Pull in from Flask
+        let existingUnavailable = JSON.parse('{{ unavailable_days|default([])|tojson|safe }}');
+        let unavailableSet = new Set(existingUnavailable);
+
+        document.addEventListener('DOMContentLoaded', function() {
+            let calendarEl = document.getElementById('calendar');
+
+            let calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                selectable: true,
+                dateClick: function(info) {
+                    let dateStr = info.dateStr;
+
+                    // Toggle unavailable status
+                    if (unavailableSet.has(dateStr)) {
+                        unavailableSet.delete(dateStr);
+                    } else {
+                        unavailableSet.add(dateStr);
+                    }
+                    calendar.refetchEvents();
+                },
+                events: function(fetchInfo, successCallback, failureCallback) {
+                    // Return unavailable days as events with a red background
+                    let events = Array.from(unavailableSet).map(dateStr => ({
+                        start: dateStr,
+                        display: 'background',
+                        classNames: ['unavailable-day']
+                    }));
+                    successCallback(events);
+                }
+            });
+
+            calendar.render();
+
+            // On form submit, put JSON array in hidden input
+            document.getElementById('availability-form').addEventListener('submit', function() {
+                document.getElementById('unavailable-days').value = JSON.stringify(Array.from(unavailableSet));
+            });
+        });
+    </script>
+</body>
+</html>
