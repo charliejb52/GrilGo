@@ -12,19 +12,6 @@
         <label for="name">Worker Name:</label>
         <input type="text" name="name" required><br>
 
-        {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
-            <fieldset>
-                <legend>{{ day }}</legend>
-                <label>Start:</label>
-                <input type="time" name="{{ day.lower() }}_start">
-                <label>End:</label>
-                <input type="time" name="{{ day.lower() }}_end">
-                <label>
-                    <input type="checkbox" name="{{ day.lower() }}_all"> All
-                </label>
-            </fieldset>
-        {% endfor %}
-
         <button type="submit">Save Worker</button>
     </form>
 
