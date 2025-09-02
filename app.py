@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, Blueprint, jsonify
 from models import db, Worker, Shift, User, generate_random_password
 import calendar
+from helpers import get_month_range
 from datetime import datetime, date, timedelta
 from sqlalchemy import extract, event
 from sqlalchemy.engine import Engine
@@ -8,6 +9,7 @@ import sqlite3
 from ai_scheduler import build_monthly_optimizer
 from flask_login import login_user, logout_user, login_required, current_user
 import json
+from collections import defaultdict
 
 
 
@@ -61,115 +63,106 @@ def logout():
     flash('Logged out.')
     return redirect(url_for('login'))
 
-@app.route('/dashboard_manager')
-@login_required
-def dashboard_manager():
-    year = request.args.get('year', type=int, default=datetime.now().year)
-    month = request.args.get('month', type=int, default=datetime.now().month)
-
-    # Fix month overflow
-    if month < 1:
-        month = 12
-        year -= 1
-    elif month > 12:
-        month = 1
-        year += 1
-
-    # get how many days in month
-    num_days = calendar.monthrange(year, month)[1]
-    first_day = date(year, month, 1)
-    start_weekday = first_day.weekday()  # Monday=0
-
-    # build weeks matrix of date objects
-    weeks = []
-    day_counter = 1
-    for _ in range(6):  # max 6 weeks in a month
-        week = []
-        for i in range(7):
-            if len(weeks) == 0 and i < start_weekday:
-                week.append(None)
-            elif day_counter > num_days:
-                week.append(None)
-            else:
-                week.append(date(year, month, day_counter))
-                day_counter += 1
-        weeks.append(week)
-
-    # Query shifts for this month
-    shifts = Shift.query.filter(
-        extract('year', Shift.date) == year,
-        extract('month', Shift.date) == month
-    ).all()
-
-    # Group shifts by day number
-    shifts_by_day = {}
-    for shift in shifts:
-        day = shift.date.day
-        if day not in shifts_by_day:
-            shifts_by_day[day] = []
-        shifts_by_day[day].append(shift)
-
-    return render_template('manager_calendar.html',
-                           weeks=weeks,
-                           month=month,
-                           year=year,
-                           shifts_by_day=shifts_by_day,
-                           calendar=calendar)
-
 @app.route('/dashboard_employee')
 @login_required
 def dashboard_employee():
-    year = request.args.get('year', type=int, default=datetime.now().year)
-    month = request.args.get('month', type=int, default=datetime.now().month)
+    current_worker = Worker.query.filter_by(user_id=current_user.id).first()
 
-    # Fix month overflow
-    if month < 1:
-        month = 12
-        year -= 1
-    elif month > 12:
-        month = 1
-        year += 1
+    today = date.today()
+    year = today.year
+    month = today.month
 
-    # get how many days in month
-    num_days = calendar.monthrange(year, month)[1]
-    first_day = date(year, month, 1)
-    start_weekday = first_day.weekday()  # Monday=0
+    # Build month days
+    first_day, last_day = get_month_range(year, month)
+    day_count = (last_day - first_day).days + 1
+    days = [first_day + timedelta(days=i) for i in range(day_count)]
+    first_weekday = first_day.weekday()  # Monday=0
 
-    # build weeks matrix of date objects
-    weeks = []
-    day_counter = 1
-    for _ in range(6):  # max 6 weeks in a month
-        week = []
-        for i in range(7):
-            if len(weeks) == 0 and i < start_weekday:
-                week.append(None)
-            elif day_counter > num_days:
-                week.append(None)
-            else:
-                week.append(date(year, month, day_counter))
-                day_counter += 1
-        weeks.append(week)
+    # Prepare next/previous month navigation
+    prev_month = month - 1 or 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
 
-    # Query shifts for this month
+    # Query all shifts for the month
     shifts = Shift.query.filter(
         extract('year', Shift.date) == year,
         extract('month', Shift.date) == month
     ).all()
 
-    # Group shifts by day number
-    shifts_by_day = {}
-    for shift in shifts:
-        day = shift.date.day
-        if day not in shifts_by_day:
-            shifts_by_day[day] = []
-        shifts_by_day[day].append(shift)
+    # Group shifts by date
+    shifts_by_day = defaultdict(list)
+    for s in shifts:
+        shifts_by_day[s.date].append(s)  # s.date should be a date object
 
-    return render_template('employee_calendar.html',
-                           weeks=weeks,
-                           month=month,
-                           year=year,
-                           shifts_by_day=shifts_by_day,
-                           calendar=calendar)
+    return render_template(
+        'employee_calendar.html',
+        current_worker=current_worker,
+        days=days,
+        first_weekday=first_weekday,
+        shifts_by_day=shifts_by_day,
+        year=year,
+        month=month,
+        prev_month=prev_month,
+        prev_year=prev_year,
+        next_month=next_month,
+        next_year=next_year
+    )
+
+@app.route("/dashboard/manager")
+@login_required
+def dashboard_manager():
+    # Get year and month from query params, fallback to today
+    year = request.args.get("year", type=int)
+    month = request.args.get("month", type=int)
+
+    today = date.today()
+    if not year or not month:
+        year, month = today.year, today.month
+
+    # Get month range
+    first_day, last_day = get_month_range(year, month)
+    day_count = (last_day - first_day).days + 1
+    first_weekday = first_day.weekday()
+
+    days = [first_day + timedelta(days=i) for i in range(day_count)]
+
+    # Fetch shifts
+    shifts = Shift.query.filter(
+        db.extract("year", Shift.date) == year,
+        db.extract("month", Shift.date) == month
+    ).all()
+
+    # Map shifts by day
+    shifts_map = {}
+    for shift in shifts:
+        shifts_map.setdefault(shift.date.day, []).append(shift)
+
+    # Compute previous/next months
+    if month == 1:
+        prev_year, prev_month = year - 1, 12
+    else:
+        prev_year, prev_month = year, month - 1
+
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+
+    return render_template(
+        "employee_calendar.html",
+        year=year,
+        month=month,
+        days=days,
+        day_count=day_count,
+        first_weekday=first_weekday,
+        shifts_map=shifts_map,
+        current_worker=current_user.worker,
+        prev_year=prev_year,
+        prev_month=prev_month,
+        next_year=next_year,
+        next_month=next_month
+    )
 
 @app.route('/add_shift', methods=['GET', 'POST'])
 def add_shift():

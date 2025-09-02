@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <a href="{{ url_for('dashboard_employee', month=month-1, year=year) }}" class="btn btn-outline-secondary">« Previous</a>
+<h2>{{ current_worker.name }}'s Shifts – {{ year }}-{{ "%02d"|format(month) }}</h2>
+<div class="calendar-nav">
+    <a href="{{ url_for('dashboard_employee', year=prev_year, month=prev_month) }}" class="btn btn-secondary">← Previous</a>
+    <span class="mx-3">{{ year }} - {{ month }}</span>
+    <a href="{{ url_for('dashboard_employee', year=next_year, month=next_month) }}" class="btn btn-secondary">Next →</a>
+</div>
 
-        <h2>{{ calendar.month_name[month] }} {{ year }}</h2>
-
-        <a href="{{ url_for('dashboard_employee', month=month+1, year=year) }}" class="btn btn-outline-secondary">Next »</a>
-    </div> 
-    <table>
+<table class="table table-bordered calendar">
+    <thead>
         <tr>
             <th>Mon</th>
             <th>Tue</th>
@@ -18,26 +18,65 @@
             <th>Sat</th>
             <th>Sun</th>
         </tr>
-        {% for week in weeks %}
-            <tr>
-            {% for date_obj in week %}
-                <td>
-                {% if date_obj %}
-                    {{ date_obj.day }}
-                    </a>
-                    {% if shifts_by_day.get(date_obj.day) %}
-                    {% for shift in shifts_by_day[date_obj.day] %}
-                        <div style="font-size: 0.85em;">
-                        {{ shift.worker.name }} ({{ shift.start_time.strftime('%H:%M') }}–{{ shift.end_time.strftime('%H:%M') }})
-                        </div>
-                    {% endfor %}
-                    {% endif %}
-                {% endif %}
-                </td>
-            {% endfor %}
-            </tr>
+    </thead>
+    <tbody>
+        <tr>
+        {# pad empty cells before the first day #}
+        {% for _ in range(first_weekday) %}
+            <td></td>
         {% endfor %}
-    </table>
-    <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
-    <a href="{{ url_for('set_availability') }}" class="btn btn-secondary">Set Availability</a>
+
+        {% for day in days %}
+            <td valign="top">
+                <strong>{{ day.day }}</strong>
+                <ul class="shift-list">
+                {% for shift in shifts_by_day.get(day, []) %}
+                    <li {% if shift.worker_id == current_worker.id %}class="my-shift"{% endif %}>
+                        {{ shift.start_time.strftime("%H:%M") }}–{{ shift.end_time.strftime("%H:%M") }}
+                        {% if shift.worker_id == current_worker.id %}
+                            <strong>(You)</strong>
+                        {% else %}
+                            ({{ shift.worker.name }})
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            </td>
+
+            {# break row at Sunday #}
+            {% if (day.weekday() == 6) and not loop.last %}
+                </tr><tr>
+            {% endif %}
+        {% endfor %}
+
+        {# pad empty cells after last day #}
+        {% set remaining = 6 - days[-1].weekday() %}
+        {% for _ in range(remaining) %}
+            <td></td>
+        {% endfor %}
+        </tr>
+    </tbody>
+</table>
+
+<style>
+.calendar th, .calendar td {
+    width: 14%;
+    height: 120px;
+    vertical-align: top;
+}
+.shift-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+    font-size: 0.85em;
+}
+.my-shift {
+    background: #e0ffe0;
+    border-left: 3px solid green;
+    padding-left: 4px;
+}
+</style>
+<a href="{{ url_for('set_availability') }}" class="btn btn-secondary">Set Availability</a>
+<a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
+
 {% endblock %}

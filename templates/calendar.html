@@ -1,0 +1,30 @@
+<table border="1" cellpadding="5" class="calendar">
+    <tr>
+        <th>Day</th>
+        <th>Shift(s)</th>
+    </tr>
+    {% for day in days %}
+    <tr>
+        <td>{{ day.strftime("%A, %b %d") }}</td>
+        <td>
+            {% if shifts_map.get(day) %}
+                <ul>
+                {% for shift in shifts_map[day] %}
+                    <li>
+                        {{ shift.start_time.strftime("%H:%M") }} - {{ shift.end_time.strftime("%H:%M") }}
+                        ({{ shift.role_type }})
+                        {% if shift.worker %}
+                            - {{ shift.worker.name }}
+                        {% else %}
+                            - <em>Unassigned</em>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <em>No shifts</em>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
