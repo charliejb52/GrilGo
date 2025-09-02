@@ -69,8 +69,8 @@ def dashboard_employee():
     current_worker = Worker.query.filter_by(user_id=current_user.id).first()
 
     today = date.today()
-    year = today.year
-    month = today.month
+    month = request.args.get('month', type=int, default=date.today().month)
+    year = request.args.get('year', type=int, default=date.today().year)
 
     # Build month days
     first_day, last_day = get_month_range(year, month)
@@ -79,10 +79,19 @@ def dashboard_employee():
     first_weekday = first_day.weekday()  # Monday=0
 
     # Prepare next/previous month navigation
-    prev_month = month - 1 or 12
-    prev_year = year if month > 1 else year - 1
-    next_month = month + 1 if month < 12 else 1
-    next_year = year if month < 12 else year + 1
+    if month == 1:
+        prev_month = 12
+        prev_year = year - 1
+    else:
+        prev_month = month - 1
+        prev_year = year
+
+    if month == 12:
+        next_month = 1
+        next_year = year + 1
+    else:
+        next_month = month + 1
+        next_year = year
 
     # Query all shifts for the month
     shifts = Shift.query.filter(
@@ -112,56 +121,56 @@ def dashboard_employee():
 @app.route("/dashboard/manager")
 @login_required
 def dashboard_manager():
-    # Get year and month from query params, fallback to today
-    year = request.args.get("year", type=int)
-    month = request.args.get("month", type=int)
+    current_worker = Worker.query.filter_by(user_id=current_user.id).first()
 
     today = date.today()
-    if not year or not month:
-        year, month = today.year, today.month
+    month = request.args.get('month', type=int, default=date.today().month)
+    year = request.args.get('year', type=int, default=date.today().year)
 
-    # Get month range
+    # Build month days
     first_day, last_day = get_month_range(year, month)
     day_count = (last_day - first_day).days + 1
-    first_weekday = first_day.weekday()
-
     days = [first_day + timedelta(days=i) for i in range(day_count)]
+    first_weekday = first_day.weekday()  # Monday=0
 
-    # Fetch shifts
-    shifts = Shift.query.filter(
-        db.extract("year", Shift.date) == year,
-        db.extract("month", Shift.date) == month
-    ).all()
-
-    # Map shifts by day
-    shifts_map = {}
-    for shift in shifts:
-        shifts_map.setdefault(shift.date.day, []).append(shift)
-
-    # Compute previous/next months
+    # Prepare next/previous month navigation
     if month == 1:
-        prev_year, prev_month = year - 1, 12
+        prev_month = 12
+        prev_year = year - 1
     else:
-        prev_year, prev_month = year, month - 1
+        prev_month = month - 1
+        prev_year = year
 
     if month == 12:
-        next_year, next_month = year + 1, 1
+        next_month = 1
+        next_year = year + 1
     else:
-        next_year, next_month = year, month + 1
+        next_month = month + 1
+        next_year = year
+
+    # Query all shifts for the month
+    shifts = Shift.query.filter(
+        extract('year', Shift.date) == year,
+        extract('month', Shift.date) == month
+    ).all()
+
+    # Group shifts by date
+    shifts_by_day = defaultdict(list)
+    for s in shifts:
+        shifts_by_day[s.date].append(s)  # s.date should be a date object
 
     return render_template(
-        "employee_calendar.html",
+        'manager_calendar.html',
+        current_worker=current_worker,
+        days=days,
+        first_weekday=first_weekday,
+        shifts_by_day=shifts_by_day,
         year=year,
         month=month,
-        days=days,
-        day_count=day_count,
-        first_weekday=first_weekday,
-        shifts_map=shifts_map,
-        current_worker=current_user.worker,
-        prev_year=prev_year,
         prev_month=prev_month,
-        next_year=next_year,
-        next_month=next_month
+        prev_year=prev_year,
+        next_month=next_month,
+        next_year=next_year
     )
 
 @app.route('/add_shift', methods=['GET', 'POST'])
