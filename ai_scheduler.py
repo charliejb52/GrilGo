@@ -44,7 +44,6 @@ def generate_month_shifts(year: int, month: int):
         for shift_type, (start, end) in SHIFT_TYPES.items():
             all_shifts.append({
                 'date': current_date,
-                'type': shift_type,
                 'start': start,
                 'end': end,
                 'role_type': "normal"
@@ -54,7 +53,6 @@ def generate_month_shifts(year: int, month: int):
         for shift_type, (start, end) in CART_SHIFT_TYPES.items():
             all_shifts.append({
                 'date': current_date,
-                'type': shift_type,
                 'start': start,
                 'end': end,
                 'role_type': "cart"
@@ -64,7 +62,6 @@ def generate_month_shifts(year: int, month: int):
         for shift_type, (start, end) in TURN_GRILL_SHIFT_TYPES.items():
             all_shifts.append({
                 'date': current_date,
-                'type': shift_type,
                 'start': start,
                 'end': end,
                 'role_type': "turn_grill"
@@ -139,7 +136,6 @@ def build_monthly_optimizer(year: int, month: int):
                 start_time=shift['start'],
                 end_time=shift['end'],
                 worker_id=w_id,
-                type=shift['type'],
                 role_type=shift['role_type']  # make sure your Shift model has this column
             )
             db.session.add(new_shift)

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Plan Shifts – {{ year }}-{{ "%02d"|format(month) }}</h2>
+
+<div class="calendar-nav mb-3">
+    <a href="{{ url_for('plan_schedule', year=prev_year, month=prev_month) }}" class="btn btn-secondary">← Previous</a>
+    <span class="mx-3">{{ year }} - {{ month }}</span>
+    <a href="{{ url_for('plan_schedule', year=next_year, month=next_month) }}" class="btn btn-secondary">Next →</a>
+</div>
+
+<form method="POST" action="{{ url_for('plan_schedule', year=year, month=month) }}">
+<table class="table table-bordered calendar">
+    <thead>
+        <tr>
+            <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th>
+            <th>Fri</th><th>Sat</th><th>Sun</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+        {% for d in days %}
+            {% if d.month != month %}
+                <td class="bg-light"></td>
+            {% else %}
+                <td valign="top">
+                    <strong>{{ d.day }}</strong>
+                    {% set day_key = d.strftime("%Y-%m-%d") %}
+                    <div class="shift-list">
+                        {% for shift in shifts_by_day.get(day_key, []) %}
+                            <div class="shift-entry">
+                                {{ shift.start_time.strftime("%H:%M") }}–{{ shift.end_time.strftime("%H:%M") }}
+                                <em>{{ shift.role_type }}</em>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Add new shift form (inline per day) -->
+                    <div class="mt-2">
+                        <input type="hidden" name="date" value="{{ d }}">
+                        <input type="time" name="start_time" class="form-control form-control-sm mb-1">
+                        <input type="time" name="end_time" class="form-control form-control-sm mb-1">
+                        <select name="role_type" class="form-control form-control-sm mb-1">
+                            <option value="normal">Normal</option>
+                            <option value="cart">Cart</option>
+                            <option value="turn_grill">Turn Grill</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                    </div>
+                </td>
+            {% endif %}
+
+            {% if d.weekday() == 6 and not loop.last %}
+                </tr><tr>
+            {% endif %}
+        {% endfor %}
+        </tr>
+    </tbody>
+</table>
+</form>
+
+<style>
+.calendar th, .calendar td {
+    width: 14%;
+    height: 160px;
+    vertical-align: top;
+}
+.shift-entry {
+    background: #f0f8ff;
+    margin-bottom: 4px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+</style>
+{% endblock %}

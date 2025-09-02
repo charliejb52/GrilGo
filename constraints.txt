@@ -1,0 +1,25 @@
+Business constraints:
+
+Shift coverage: require at least one grill staff to open/close. Usually should have two grill staff between 11:00am-7:00pm
+
+Roles: grill staff, cart staff, turn staff
+
+Opening hours: 9:00am-9:15pm
+
+Max hours per worker: 20 hours per week
+
+Min hours per shift: 4 hours per shift
+
+Max workers per shift: 2 grill staff, 1 cart staff, 1 turn staff
+
+Break rules: Workers must have at least 12 hours between shifts
+
+Weekly coverage: seven days a week excluding specified closed days
+
+
+
+
+
+
+
+Individual constraints:

@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>{{ current_worker.name }}'s Shifts – {{ year }}-{{ "%02d"|format(month) }}</h2>
 <div class="calendar-nav">
     <a href="{{ url_for('dashboard_manager', year=prev_year, month=prev_month) }}" class="btn btn-secondary">← Previous</a>
     <span class="mx-3">{{ year }} - {{ month }}</span>
@@ -31,7 +30,11 @@
                 <strong>{{ day.day }}</strong>
                 <ul class="shift-list">
                 {% for shift in shifts_by_day.get(day, []) %}
-                    <li {% if shift.worker_id == current_worker.id %}class="my-shift"{% endif %}>
+                    <li 
+                        {% if shift.worker_id == current_worker.id %}class="my-shift"{% endif %}
+                        {% if shift.role_type == 'cart' %} style="background-color: #cce5ff;"{% endif %}
+                        {% if shift.role_type == 'turn_grill' %} style="background-color: #ffe5b4;"{% endif %}
+                    >
                         {{ shift.start_time.strftime("%H:%M") }}–{{ shift.end_time.strftime("%H:%M") }}
                         {% if shift.worker_id == current_worker.id %}
                             <strong>(You)</strong>
@@ -80,6 +83,21 @@
 <a href="{{ url_for('generate') }}" class="btn btn-secondary">Generate Schedule</a>
 <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
 <a href="{{ url_for('view_passwords') }}" class="btn btn-secondary">Employee Passwords</a>
+<a href="{{ url_for('plan_schedule', month=month, year=year) }}" class="btn btn-secondary mt-2">Plan Shifts</a>
+
+<form action="{{ url_for('clear_month_schedule') }}" method="POST" style="margin-top: 20px;">
+    <label for="month">Month:</label>
+    <select name="month" id="month">
+        {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="year">Year:</label>
+    <input type="number" name="year" id="year" value="{{ year }}" min="2023" max="2100">
+
+    <button type="submit" class="btn btn-danger">Clear Schedule for Month</button>
+</form>
 
 {% endblock %}
 

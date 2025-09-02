@@ -41,9 +41,7 @@ class Shift(db.Model):
     role_type = db.Column(db.String(20), default="normal")  
     # could be: "normal", "cart", "turn_grill"
 
-    type = db.Column(db.String(50), nullable=False)  # opener, closer, cart_opener, etc.
-
-    worker_id = db.Column(db.Integer, db.ForeignKey('worker.id', ondelete="CASCADE"), nullable=False)
+    worker_id = db.Column(db.Integer, db.ForeignKey('worker.id', ondelete="CASCADE"), nullable=True)
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)

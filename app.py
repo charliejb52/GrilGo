@@ -280,24 +280,34 @@ def add_shift_with_date(date):
 
     return render_template('add_shift_for_date.html', date=date, workers=workers)
 
-@app.route('/clear_schedule', methods=['POST'])
-def clear_schedule():
-    date_str = request.form.get('start_date')
-    if not date_str:
-        flash('No date provided.', 'error')
+@app.route('/clear_month_schedule', methods=['POST'])
+@login_required
+def clear_month_schedule():
+    if current_user.role != 'manager':
+        flash("Access denied.", "danger")
+        return redirect(url_for('dashboard_manager'))
+
+    month = request.form.get('month', type=int)
+    year = request.form.get('year', type=int)
+
+    if not month or not year or month < 1 or month > 12:
+        flash("Invalid month or year.", "danger")
         return redirect(url_for('dashboard_manager'))
 
     try:
-        start_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        end_date = start_date + timedelta(days=7)
+        # Delete all shifts for the specified month/year
+        Shift.query.filter(
+            extract('year', Shift.date) == year,
+            extract('month', Shift.date) == month
+        ).delete(synchronize_session=False)
 
-        Shift.query.filter(Shift.date >= start_date, Shift.date < end_date).delete()
         db.session.commit()
-        flash(f'Schedule cleared for week starting {start_date}.', 'success')
+        flash(f"Schedule cleared for {calendar.month_name[month]} {year}.", "success")
     except Exception as e:
-        flash(f'Error clearing schedule: {str(e)}', 'error')
+        db.session.rollback()
+        flash(f"Error clearing schedule: {str(e)}", "danger")
 
-    return redirect(url_for('dashboard_manager'))
+    return redirect(url_for('dashboard_manager', month=month, year=year))
 
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
@@ -376,6 +386,63 @@ def toggle_turn_grill_staff(worker_id):
     worker.is_turn_grill_staff = not worker.is_turn_grill_staff
     db.session.commit()
     return redirect(url_for('manage_workers'))
+
+@app.route("/plan_schedule/<int:year>/<int:month>", methods=["GET", "POST"])
+def plan_schedule(year, month):
+    if request.method == "POST":
+        date_str = request.form["date"]
+        start_time = request.form["start_time"]
+        end_time = request.form["end_time"]
+        role_type = request.form["role_type"]
+
+        # Parse date + times properly
+        shift_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        start_dt = datetime.strptime(start_time, "%H:%M").time()
+        end_dt = datetime.strptime(end_time, "%H:%M").time()
+
+        new_shift = Shift(
+            date=shift_date,
+            start_time=start_dt,
+            end_time=end_dt,
+            role_type=role_type,
+            type="manual",   # make sure NOT NULL constraint is satisfied
+        )
+        db.session.add(new_shift)
+        db.session.commit()
+        return redirect(url_for("plan_schedule", year=year, month=month))
+
+    # build calendar days
+    days = list(calendar.Calendar().itermonthdates(year, month))
+
+    # query shifts for that month
+    shifts = Shift.query.filter(
+        extract("year", Shift.date) == year,
+        extract("month", Shift.date) == month
+    ).all()
+
+    # group shifts by day
+    shifts_by_day = {}
+    for s in shifts:
+        key = s.date.strftime("%Y-%m-%d") if isinstance(s.date, date) else s.date.date().strftime("%Y-%m-%d")
+        shifts_by_day.setdefault(key, []).append(s)
+
+    # nav
+    prev_month = month - 1 or 12
+    next_month = month + 1 if month < 12 else 1
+    prev_year = year - 1 if month == 1 else year
+    next_year = year + 1 if month == 12 else year
+
+    return render_template(
+        "plan_schedule.html",
+        year=year,
+        month=month,
+        days=days,
+        shifts_by_day=shifts_by_day,  # ✅ used by template
+        prev_month=prev_month,
+        next_month=next_month,
+        prev_year=prev_year,
+        next_year=next_year,
+    )
 
 print(app.url_map)
 

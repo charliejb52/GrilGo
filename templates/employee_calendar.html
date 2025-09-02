@@ -31,7 +31,11 @@
                 <strong>{{ day.day }}</strong>
                 <ul class="shift-list">
                 {% for shift in shifts_by_day.get(day, []) %}
-                    <li {% if shift.worker_id == current_worker.id %}class="my-shift"{% endif %}>
+                    <li 
+                        {% if shift.worker_id == current_worker.id %}class="my-shift"{% endif %}
+                        {% if shift.role_type == 'cart' %} style="background-color: #cce5ff;"{% endif %}
+                        {% if shift.role_type == 'turn_grill' %} style="background-color: #ffe5b4;"{% endif %}
+                    >
                         {{ shift.start_time.strftime("%H:%M") }}–{{ shift.end_time.strftime("%H:%M") }}
                         {% if shift.worker_id == current_worker.id %}
                             <strong>(You)</strong>
