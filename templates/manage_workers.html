@@ -1,31 +1,58 @@
 {% extends "base.html" %}
 
-
 {% block content %}
-<html>
-<head>
-    <title>Manage Workers</title>
-    <a href="{{ url_for('dashboard_manager') }}" class="btn btn-secondary">Back to calendar</a>
-</head>
-<body>
-    <form method="POST">
-        <label for="name">Worker Name:</label>
-        <input type="text" name="name" required><br>
+<h2>Manage Workers</h2>
 
-        <button type="submit">Save Worker</button>
-    </form>
+<a href="{{ url_for('dashboard_manager') }}" class="btn btn-secondary">Back to calendar</a>
 
-    <h2>Current Workers</h2>
-    <ul>
-        {% for worker in workers %}
-            <li>
-                {{ worker.name }}
-                <form method="post" action="{{ url_for('delete_worker', worker_id=worker.id) }}" style="display:inline;">
-                    <button type="submit" onclick="return confirm('Delete {{ worker.name }}?')">Delete</button>
-                </form>
-            </li>
-        {% endfor %}
-    </ul>
-</body>
-</html>
+<!-- Add Worker Form -->
+<form method="POST" action="{{ url_for('add_worker') }}">
+    <label for="name">Worker Name:</label>
+    <input type="text" name="name" required><br>
+
+    <label>
+        <input type="checkbox" name="is_cart_staff"> Cart Staff
+    </label><br>
+
+    <label>
+        <input type="checkbox" name="is_turn_grill_staff"> Turn-Grill Staff
+    </label><br>
+
+    <button type="submit">Add Worker</button>
+</form>
+
+<hr>
+
+<!-- Current Workers -->
+<table class="table">
+    <tr>
+        <th>Name</th>
+        <th>Cart Staff</th>
+        <th>Turn-Grill Staff</th>
+        <th>Actions</th>
+    </tr>
+    {% for worker in workers %}
+    <tr>
+        <td>{{ worker.name }}</td>
+        <td>
+            <form action="{{ url_for('toggle_cart_staff', worker_id=worker.id) }}" method="post">
+                <input type="checkbox" name="is_cart_staff" value="1"
+                       onchange="this.form.submit()" {% if worker.is_cart_staff %}checked{% endif %}>
+            </form>
+        </td>
+        <td>
+            <form action="{{ url_for('toggle_turn_grill_staff', worker_id=worker.id) }}" method="post">
+                <input type="checkbox" name="is_turn_grill_staff" value="1"
+                       onchange="this.form.submit()" {% if worker.is_turn_grill_staff %}checked{% endif %}>
+            </form>
+        </td>
+        <td>
+            <form action="{{ url_for('delete_worker', worker_id=worker.id) }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-danger btn-sm"
+                    onclick="return confirm('Delete {{ worker.name }}?')">Delete</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
 {% endblock %}

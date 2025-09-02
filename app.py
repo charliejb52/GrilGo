@@ -219,6 +219,31 @@ def manage_workers():
     workers = Worker.query.all()
     return render_template("manage_workers.html", workers=workers)
 
+@app.route("/add_worker", methods=["POST"])
+def add_worker():
+    name = request.form["name"]
+    is_cart_staff = "is_cart_staff" in request.form
+    is_turn_grill_staff = "is_turn_grill_staff" in request.form
+
+    # 1️⃣ Create the user
+    password = generate_random_password()  # function you already have
+    new_user = User(username=name, role="employee")
+    new_user.set_password(password)  # hashes the password
+
+    # 2️⃣ Create the worker and link to user
+    new_worker = Worker(
+        name=name,
+        is_cart_staff=is_cart_staff,
+        is_turn_grill_staff=is_turn_grill_staff,
+        user=new_user
+    )
+
+    db.session.add(new_worker)
+    db.session.commit()
+
+    flash(f"Worker created. Username: {name}, Password: {password}", "success")
+    return redirect(url_for("manage_workers"))
+
 @app.route('/manage/view-passwords')
 @login_required
 def view_passwords():
@@ -335,6 +360,20 @@ def set_availability():
         unavailable_days = []
 
     return render_template("availability.html", unavailable_days=unavailable_days)
+
+@app.route('/toggle_cart_staff/<int:worker_id>', methods=['POST'])
+def toggle_cart_staff(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+    worker.is_cart_staff = not worker.is_cart_staff
+    db.session.commit()
+    return redirect(url_for('manage_workers'))
+
+@app.route('/toggle_turn_grill_staff/<int:worker_id>', methods=['POST'])
+def toggle_turn_grill_staff(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+    worker.is_turn_grill_staff = not worker.is_turn_grill_staff
+    db.session.commit()
+    return redirect(url_for('manage_workers'))
 
 print(app.url_map)
 
