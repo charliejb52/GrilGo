@@ -10,6 +10,7 @@ from ai_scheduler import build_monthly_optimizer
 from flask_login import login_user, logout_user, login_required, current_user
 import json
 from collections import defaultdict
+import random, string
 
 
 
@@ -19,6 +20,11 @@ from flask import flash
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///schedule.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
+
+from flask_migrate import Migrate
+from models import db  # or however you import db
+
+migrate = Migrate(app, db)
 
 # Enable foreign key constraints in SQLite
 @event.listens_for(Engine, "connect")
@@ -221,6 +227,15 @@ def manage_workers():
     workers = Worker.query.all()
     return render_template("manage_workers.html", workers=workers)
 
+def generate_unique_username(base_name):
+    username = base_name.lower().replace(" ", "")
+    candidate = username
+    counter = 1
+    while User.query.filter_by(username=candidate).first():
+        candidate = f"{username}{counter}"
+        counter += 1
+    return candidate
+
 @app.route("/add_worker", methods=["POST"])
 def add_worker():
     name = request.form["name"]
@@ -228,8 +243,9 @@ def add_worker():
     is_turn_grill_staff = "is_turn_grill_staff" in request.form
 
     # 1️⃣ Create the user
+    username = generate_unique_username(name)
     password = generate_random_password()  # function you already have
-    new_user = User(username=name, role="employee")
+    new_user = User(username=username, role="employee")
     new_user.set_password(password)  # hashes the password
 
     # 2️⃣ Create the worker and link to user
@@ -243,7 +259,7 @@ def add_worker():
     db.session.add(new_worker)
     db.session.commit()
 
-    flash(f"Worker created. Username: {name}, Password: {password}", "success")
+    flash(f"Worker created. Username: {username}, Password: {password}", "success")
     return redirect(url_for("manage_workers"))
 
 @app.route('/manage/view-passwords')
@@ -393,7 +409,6 @@ def plan_schedule(year, month):
         date_str = request.form["date"]
         start_time = request.form["start_time"]
         end_time = request.form["end_time"]
-        role_type = request.form["role_type"]
 
         # Parse date + times properly
         shift_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -404,8 +419,6 @@ def plan_schedule(year, month):
             date=shift_date,
             start_time=start_dt,
             end_time=end_dt,
-            role_type=role_type,
-            type="manual",   # make sure NOT NULL constraint is satisfied
         )
         db.session.add(new_shift)
         db.session.commit()

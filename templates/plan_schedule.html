@@ -27,25 +27,34 @@
                     {% set day_key = d.strftime("%Y-%m-%d") %}
                     <div class="shift-list">
                         {% for shift in shifts_by_day.get(day_key, []) %}
-                            <div class="shift-entry">
+                            <div class="shift-entry
+                                {% if shift.worker_id is none %} unassigned{% endif %}
+                                {% if shift.role_type == 'cart' %} cart-shift{% endif %}
+                                {% if shift.role_type == 'turn_grill' %} turn-grill-shift{% endif %}
+                            ">
                                 {{ shift.start_time.strftime("%H:%M") }}–{{ shift.end_time.strftime("%H:%M") }}
                                 <em>{{ shift.role_type }}</em>
+                                {% if shift.worker %}
+                                    ({{ shift.worker.name }})
+                                {% else %}
+                                    <strong>Unassigned</strong>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>
 
                     <!-- Add new shift form (inline per day) -->
-                    <div class="mt-2">
+                    <form method="POST" action="{{ url_for('plan_schedule', year=year, month=month) }}" class="mt-2">
                         <input type="hidden" name="date" value="{{ d }}">
-                        <input type="time" name="start_time" class="form-control form-control-sm mb-1">
-                        <input type="time" name="end_time" class="form-control form-control-sm mb-1">
-                        <select name="role_type" class="form-control form-control-sm mb-1">
+                        <input type="time" name="start_time" class="form-control form-control-sm mb-1" required>
+                        <input type="time" name="end_time" class="form-control form-control-sm mb-1" required>
+                        <select name="role_type" class="form-control form-control-sm mb-1" required>
                             <option value="normal">Normal</option>
                             <option value="cart">Cart</option>
                             <option value="turn_grill">Turn Grill</option>
                         </select>
                         <button type="submit" class="btn btn-sm btn-primary">Add</button>
-                    </div>
+                    </form>
                 </td>
             {% endif %}
 
@@ -57,6 +66,7 @@
     </tbody>
 </table>
 </form>
+<a href="{{ url_for('dashboard_manager') }}" class="btn btn-secondary">Home</a>
 
 <style>
 .calendar th, .calendar td {
@@ -70,6 +80,23 @@
     padding: 2px 4px;
     border-radius: 4px;
     font-size: 0.8em;
+}
+
+.shift-entry.unassigned {
+    background: #ffe0e0;
+    border-left: 3px solid red;
+    color: #900;
+    font-weight: bold;
+}
+
+.shift-entry.cart-shift {
+    background: #e0f0ff;
+    border-left: 3px solid blue;
+}
+
+.shift-entry.turn-grill-shift {
+    background: #fff4e0;
+    border-left: 3px solid orange;
 }
 </style>
 {% endblock %}
