@@ -57,6 +57,14 @@ class User(db.Model, UserMixin):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
     
+class ShiftTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)   # e.g. "Opener"
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    role_type = db.Column(db.String(20), default="normal")  
+    # normal, cart, turn_grill
+
 import secrets
 import string
 

@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, Blueprint, jsonify
-from models import db, Worker, Shift, User, generate_random_password
+from models import db, Worker, Shift, User, ShiftTemplate, generate_random_password
 import calendar
 from helpers import get_month_range
 from datetime import datetime, date, timedelta
@@ -296,34 +296,22 @@ def add_shift_with_date(date):
 
     return render_template('add_shift_for_date.html', date=date, workers=workers)
 
-@app.route('/clear_month_schedule', methods=['POST'])
+@app.route('/clear_month_schedule/<int:year>/<int:month>', methods=['POST'])
 @login_required
-def clear_month_schedule():
-    if current_user.role != 'manager':
-        flash("Access denied.", "danger")
-        return redirect(url_for('dashboard_manager'))
+def clear_month_schedule(year, month):
+    year = int(year)
+    month = int(month)
+    shifts = Shift.query.filter(
+        extract("year", Shift.date) == year,
+        extract("month", Shift.date) == month
+    ).all()
 
-    month = request.form.get('month', type=int)
-    year = request.form.get('year', type=int)
-
-    if not month or not year or month < 1 or month > 12:
-        flash("Invalid month or year.", "danger")
-        return redirect(url_for('dashboard_manager'))
-
-    try:
-        # Delete all shifts for the specified month/year
-        Shift.query.filter(
-            extract('year', Shift.date) == year,
-            extract('month', Shift.date) == month
-        ).delete(synchronize_session=False)
-
-        db.session.commit()
-        flash(f"Schedule cleared for {calendar.month_name[month]} {year}.", "success")
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error clearing schedule: {str(e)}", "danger")
-
-    return redirect(url_for('dashboard_manager', month=month, year=year))
+    for shift in shifts:
+        shift.user_id = None  # unassign worker
+    
+    db.session.commit()
+    flash("All shifts have been unassigned for this month.", "info")
+    return redirect(url_for("dashboard_manager"))
 
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
@@ -406,22 +394,20 @@ def toggle_turn_grill_staff(worker_id):
 @app.route("/plan_schedule/<int:year>/<int:month>", methods=["GET", "POST"])
 def plan_schedule(year, month):
     if request.method == "POST":
-        date_str = request.form["date"]
-        start_time = request.form["start_time"]
-        end_time = request.form["end_time"]
+        shift_date = datetime.strptime(request.form.get("date"), "%Y-%m-%d").date()
+        template_id = request.form.get("template_id")
+        template = ShiftTemplate.query.get(template_id) if template_id else None
 
-        # Parse date + times properly
-        shift_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        start_dt = datetime.strptime(start_time, "%H:%M").time()
-        end_dt = datetime.strptime(end_time, "%H:%M").time()
+        if template:
+            new_shift = Shift(
+                date=shift_date,
+                start_time=template.start_time,
+                end_time=template.end_time,
+                role_type=template.role_type
+            )
+            db.session.add(new_shift)
+            db.session.commit()
 
-        new_shift = Shift(
-            date=shift_date,
-            start_time=start_dt,
-            end_time=end_dt,
-        )
-        db.session.add(new_shift)
-        db.session.commit()
         return redirect(url_for("plan_schedule", year=year, month=month))
 
     # build calendar days
@@ -445,17 +431,43 @@ def plan_schedule(year, month):
     prev_year = year - 1 if month == 1 else year
     next_year = year + 1 if month == 12 else year
 
+    # ✅ also load available templates for the dropdown
+    templates = ShiftTemplate.query.all()
+
     return render_template(
         "plan_schedule.html",
         year=year,
         month=month,
         days=days,
-        shifts_by_day=shifts_by_day,  # ✅ used by template
+        shifts_by_day=shifts_by_day,
         prev_month=prev_month,
         next_month=next_month,
         prev_year=prev_year,
         next_year=next_year,
+        templates=templates  # pass to template
     )
+
+@app.route("/shift_templates", methods=["GET", "POST"])
+def shift_templates():
+    if request.method == "POST":
+        name = request.form.get("name")
+        start_time = request.form.get("start_time")
+        end_time = request.form.get("end_time")
+        role_type = request.form.get("role_type", "normal")
+
+        template = ShiftTemplate(
+            name=name,
+            start_time=datetime.strptime(start_time, "%H:%M").time(),
+            end_time=datetime.strptime(end_time, "%H:%M").time(),
+            role_type=role_type
+        )
+        db.session.add(template)
+        db.session.commit()
+        return redirect(url_for("shift_templates"))
+
+    templates = ShiftTemplate.query.all()
+    return render_template("shift_templates.html", templates=templates, now=date.today())
+
 
 print(app.url_map)
 

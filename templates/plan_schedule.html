@@ -44,14 +44,12 @@
                     </div>
 
                     <!-- Add new shift form (inline per day) -->
-                    <form method="POST" action="{{ url_for('plan_schedule', year=year, month=month) }}" class="mt-2">
+                    <form method="POST" action="{{ url_for('plan_schedule', year=year, month=month) }}">
                         <input type="hidden" name="date" value="{{ d }}">
-                        <input type="time" name="start_time" class="form-control form-control-sm mb-1" required>
-                        <input type="time" name="end_time" class="form-control form-control-sm mb-1" required>
-                        <select name="role_type" class="form-control form-control-sm mb-1" required>
-                            <option value="normal">Normal</option>
-                            <option value="cart">Cart</option>
-                            <option value="turn_grill">Turn Grill</option>
+                        <select name="template_id" class="form-control form-control-sm mb-1">
+                            {% for t in templates %}
+                                <option value="{{ t.id }}">{{ t.name }} ({{ t.start_time.strftime("%H:%M") }}–{{ t.end_time.strftime("%H:%M") }}, {{ t.role_type }})</option>
+                            {% endfor %}
                         </select>
                         <button type="submit" class="btn btn-sm btn-primary">Add</button>
                     </form>
@@ -67,6 +65,7 @@
 </table>
 </form>
 <a href="{{ url_for('dashboard_manager') }}" class="btn btn-secondary">Home</a>
+<a href="{{ url_for('shift_templates') }}" class="btn btn-info mb-3">Manage Shift Templates</a>
 
 <style>
 .calendar th, .calendar td {

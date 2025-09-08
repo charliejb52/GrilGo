@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Manage Shift Templates</h2>
+
+<form method="POST" class="mb-3">
+    <input type="text" name="name" placeholder="Name" required class="form-control mb-1">
+    <input type="time" name="start_time" required class="form-control mb-1">
+    <input type="time" name="end_time" required class="form-control mb-1">
+    <select name="role_type" class="form-control mb-1">
+        <option value="normal">Normal</option>
+        <option value="cart">Cart</option>
+        <option value="turn_grill">Turn Grill</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Add Template</button>
+</form>
+
+<ul class="list-group">
+{% for t in templates %}
+    <li class="list-group-item">
+        <strong>{{ t.name }}</strong> 
+        {{ t.start_time.strftime("%H:%M") }}–{{ t.end_time.strftime("%H:%M") }} ({{ t.role_type }})
+    </li>
+{% endfor %}
+</ul>
+<a href="{{ url_for('plan_schedule', year=now.year, month=now.month) }}" class="btn btn-secondary mb-3">Back to Plan Shifts</a>
+
+{% endblock %}
