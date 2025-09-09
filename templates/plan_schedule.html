@@ -8,12 +8,23 @@
     <a href="{{ url_for('plan_schedule', year=next_year, month=next_month) }}" class="btn btn-secondary">Next →</a>
 </div>
 
-<form method="POST" action="{{ url_for('plan_schedule', year=year, month=month) }}">
 <table class="table table-bordered calendar">
     <thead>
         <tr>
-            <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th>
-            <th>Fri</th><th>Sat</th><th>Sun</th>
+            {% for weekday in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"] %}
+                <th>
+                    {{ weekday }}
+                    <form method="POST" action="{{ url_for('add_weekday_shifts', year=year, month=month) }}">
+                        <input type="hidden" name="weekday" value="{{ loop.index0 }}"> <!-- 0=Mon, 6=Sun -->
+                        <select name="template_id" class="form-control form-control-sm mb-1">
+                            {% for t in templates %}
+                                <option value="{{ t.id }}">{{ t.name }} ({{ t.start_time.strftime("%H:%M") }}–{{ t.end_time.strftime("%H:%M") }}, {{ t.role_type }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-success">Add</button>
+                    </form>
+                </th>
+            {% endfor %}
         </tr>
     </thead>
     <tbody>
@@ -39,7 +50,13 @@
                                 {% else %}
                                     <strong>Unassigned</strong>
                                 {% endif %}
+
+                                <!-- Delete button -->
+                                <form method="POST" action="{{ url_for('delete_shift', shift_id=shift.id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" style="padding:0 4px; font-size:0.7em;">✕</button>
+                                </form>
                             </div>
+
                         {% endfor %}
                     </div>
 
@@ -63,7 +80,6 @@
         </tr>
     </tbody>
 </table>
-</form>
 <a href="{{ url_for('dashboard_manager') }}" class="btn btn-secondary">Home</a>
 <a href="{{ url_for('shift_templates') }}" class="btn btn-info mb-3">Manage Shift Templates</a>
 
@@ -96,6 +112,19 @@
 .shift-entry.turn-grill-shift {
     background: #fff4e0;
     border-left: 3px solid orange;
+}
+
+.shift-entry form {
+    display: inline;
+    margin-left: 4px;
+}
+
+.shift-entry button {
+    background: none;
+    border: none;
+    color: red;
+    cursor: pointer;
+    font-weight: bold;
 }
 </style>
 {% endblock %}

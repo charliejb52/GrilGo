@@ -307,7 +307,7 @@ def clear_month_schedule(year, month):
     ).all()
 
     for shift in shifts:
-        shift.user_id = None  # unassign worker
+        shift.worker_id = None  # unassign worker
     
     db.session.commit()
     flash("All shifts have been unassigned for this month.", "info")
@@ -468,6 +468,46 @@ def shift_templates():
     templates = ShiftTemplate.query.all()
     return render_template("shift_templates.html", templates=templates, now=date.today())
 
+@app.route("/add_weekday_shifts/<int:year>/<int:month>", methods=["POST"])
+def add_weekday_shifts(year, month):
+    weekday = int(request.form.get("weekday"))  # 0=Mon, 6=Sun
+    template_id = request.form.get("template_id")
+    template = ShiftTemplate.query.get(template_id)
+
+    if not template:
+        flash("Invalid template selected.", "danger")
+        return redirect(url_for("plan_schedule", year=year, month=month))
+
+    # build all days in this month
+    days = list(calendar.Calendar().itermonthdates(year, month))
+
+    # add a shift for each matching weekday that’s in the current month
+    for d in days:
+        if d.month == month and d.weekday() == weekday:
+            new_shift = Shift(
+                date=d,
+                start_time=template.start_time,
+                end_time=template.end_time,
+                role_type=template.role_type,
+                worker_id=None
+            )
+            db.session.add(new_shift)
+
+    db.session.commit()
+    flash(f"Added {template.name} to all {calendar.day_name[weekday]}s in {month}/{year}.", "success")
+    return redirect(url_for("plan_schedule", year=year, month=month))
+
+@app.route("/delete_shift/<int:shift_id>", methods=["POST"])
+def delete_shift(shift_id):
+    shift = Shift.query.get_or_404(shift_id)
+    year = shift.date.year
+    month = shift.date.month
+
+    db.session.delete(shift)
+    db.session.commit()
+    flash("Shift deleted.", "success")
+
+    return redirect(url_for("plan_schedule", year=year, month=month))
 
 print(app.url_map)
 
