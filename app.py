@@ -509,6 +509,19 @@ def delete_shift(shift_id):
 
     return redirect(url_for("plan_schedule", year=year, month=month))
 
+@app.route("/delete_all_shifts/<int:year>/<int:month>", methods=["POST"])
+def delete_all_shifts(year, month):
+    # Delete all shifts in this year/month
+    Shift.query.filter(
+        extract("year", Shift.date) == year,
+        extract("month", Shift.date) == month
+    ).delete(synchronize_session=False)
+
+    db.session.commit()
+    flash(f"All shifts for {month}/{year} deleted.", "warning")
+
+    return redirect(url_for("plan_schedule", year=year, month=month))
+
 print(app.url_map)
 
 if __name__ == '__main__':

@@ -82,6 +82,10 @@
 </table>
 <a href="{{ url_for('dashboard_manager') }}" class="btn btn-secondary">Home</a>
 <a href="{{ url_for('shift_templates') }}" class="btn btn-info mb-3">Manage Shift Templates</a>
+<form method="POST" action="{{ url_for('delete_all_shifts', year=year, month=month) }}" 
+      onsubmit="return confirm('Are you sure you want to delete ALL shifts for this month?');">
+    <button type="submit" class="btn btn-danger mb-3">Delete All Shifts</button>
+</form>
 
 <style>
 .calendar th, .calendar td {
